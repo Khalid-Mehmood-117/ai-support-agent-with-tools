@@ -131,10 +131,17 @@ def ensure_database(path: Path) -> None:
 
 
 def reset(settings: Settings) -> None:
-    """Delete the store and agent checkpoint databases and seed a fresh store."""
-    for path in (settings.resolve(settings.database_path), settings.resolve(settings.checkpoint_path)):
+    """Delete the store and agent checkpoint databases and seed a fresh store.
+
+    The checkpoint file goes first: a running backend keeps it open, and on Windows the delete then
+    fails before the store has been touched, so a failed reset leaves everything as it was.
+    """
+    for path in (settings.resolve(settings.checkpoint_path), settings.resolve(settings.database_path)):
         for suffix in ("", "-wal", "-shm", "-journal"):
-            Path(f"{path}{suffix}").unlink(missing_ok=True)
+            try:
+                Path(f"{path}{suffix}").unlink(missing_ok=True)
+            except PermissionError:
+                raise SystemExit(f"{path.name} is in use. Stop the backend, then run the reset again.")
     create_database(settings.resolve(settings.database_path))
 
 

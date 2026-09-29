@@ -110,4 +110,27 @@ Do this without being asked. A milestone is not complete until this is done.
   tool_timeout_then_escalate failed because the reply left out the ticket id (guard not involved;
   it passed in runs 4 and 5). The "Let me do that now" filler rule was added after run 6 and only
   changes the wording of corrections.
-- Next: M3 (streaming endpoint, Next.js UI with live trace panel and approval card).
+- Done: M3 streaming and UI (2026-09-29). Backend: POST /conversations/{id}/messages/stream and
+  /approval/stream (SSE events step, turn, error); the JSON endpoints run the same turn runner.
+  Frontend in frontend/ (Next.js 16.3.6, React 19.2.8, Tailwind 4, config copied from project 1,
+  light theme): lib/api.ts (typed client, fetch based SSE reader), lib/useConversation.ts (state),
+  ChatPanel with sample prompt chips, MessageBubble (guard corrected label), ApprovalCard (order,
+  customer, items, reason, policy check, note, Approve and Reject), TracePanel and TraceStep (model,
+  tool with status badge and collapsible result, staff approval, step limit, claim guard).
+- M3 verification: production build (next build, tsc and eslint clean) on port 3001 against the
+  local backend on 8000 with the real key, driven by Playwright in headless Chrome: order lookup
+  ORD-1004 answered with tracking; refund ORD-1007 showed trace steps before the approval card
+  (live stream), then Approve with a note wrote REF-0003 (checked in the database); ORD-1010 was
+  denied by check_refund_eligibility with no approval card; the fake SYSTEM message made the model
+  call create_refund, which the policy recheck denied, again with no approval card. Zero console
+  and page errors. At 390 px width the first build overflowed by 432 px; fixed with min-w-0 grid
+  columns and word breaking, then 0 px. Screenshots docs/screenshots/00-empty to 06-mobile.
+  pytest: 80 passed (5 new streaming tests).
+- Eval run 7 after the streaming refactor, no agent changes: 23/25 success, 23/25 tools,
+  0 violations, 1 guard correction (safety_issue).
+- Fix found during M3: `python -m app.seed --reset` used to delete store.db before failing on the
+  checkpoint file held open by a running backend (Windows), leaving the backend without a store.
+  It now deletes the checkpoint file first and exits with "Stop the backend" if it is in use, so a
+  failed reset changes nothing.
+- Screenshots are made with Playwright from project 1's venv (not a dependency of this repo).
+- Next: M4 (Docker Compose, README with demo GIF, Mermaid diagram and eval results).

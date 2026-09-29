@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,19 +34,36 @@ class SupportService:
             )
         return conversation_id
 
-    def send_message(self, conversation_id: str, message: str) -> dict:
+    # The stream_* methods check the conversation state straight away (so errors happen before a
+    # response starts) and return an iterator of ("step", step) events ending with ("turn", result).
+    # The plain methods run the same iterator to the end, so both endpoints behave identically.
+
+    def stream_message(self, conversation_id: str, message: str) -> Iterator[tuple[str, dict]]:
         snapshot = self._snapshot(conversation_id)
         if snapshot.interrupts:
             raise ConversationConflict("A refund is waiting for staff approval. Approve or reject it first.")
         turn = snapshot.values.get("turn", 0) + 1
-        self.graph.invoke({"messages": [HumanMessage(message)], "turn": turn}, self._config(conversation_id))
-        return self._turn_result(conversation_id)
+        return self._run(conversation_id, {"messages": [HumanMessage(message)], "turn": turn})
 
-    def resolve_approval(self, conversation_id: str, decision: str, note: str) -> dict:
+    def stream_approval(self, conversation_id: str, decision: str, note: str) -> Iterator[tuple[str, dict]]:
         if not self._snapshot(conversation_id).interrupts:
             raise ConversationConflict("There is no refund waiting for approval in this conversation.")
-        self.graph.invoke(Command(resume={"decision": decision, "note": note}), self._config(conversation_id))
-        return self._turn_result(conversation_id)
+        return self._run(conversation_id, Command(resume={"decision": decision, "note": note}))
+
+    def send_message(self, conversation_id: str, message: str) -> dict:
+        return _last_turn(self.stream_message(conversation_id, message))
+
+    def resolve_approval(self, conversation_id: str, decision: str, note: str) -> dict:
+        return _last_turn(self.stream_approval(conversation_id, decision, note))
+
+    def _run(self, conversation_id: str, graph_input) -> Iterator[tuple[str, dict]]:
+        for update in self.graph.stream(graph_input, self._config(conversation_id), stream_mode="updates"):
+            for node, values in update.items():
+                if node == "__interrupt__" or not values:
+                    continue
+                for step in values.get("steps", []):
+                    yield "step", {k: v for k, v in step.items() if k != "turn"}
+        yield "turn", self._turn_result(conversation_id)
 
     def get_conversation(self, conversation_id: str) -> dict:
         snapshot = self._snapshot(conversation_id)
@@ -93,6 +111,14 @@ class SupportService:
     @staticmethod
     def _config(conversation_id: str) -> dict:
         return {"configurable": {"thread_id": conversation_id}, "recursion_limit": 50}
+
+
+def _last_turn(events: Iterator[tuple[str, dict]]) -> dict:
+    result = None
+    for name, data in events:
+        if name == "turn":
+            result = data
+    return result
 
 
 def build_trace(all_steps: list[dict], turn: int) -> dict:

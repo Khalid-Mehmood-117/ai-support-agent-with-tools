@@ -1,6 +1,6 @@
 # PLAN.md: AI Support Agent with Tools
 
-**Status: M2 done (2026-09-29).** Next is M3. See the Status section of CLAUDE.md for what was verified.
+**Status: M3 done (2026-09-29).** Next is M4. See the Status section of CLAUDE.md for what was verified.
 
 A portfolio-grade customer support agent for a fictional online store. The agent talks to customers,
 calls real tools against a store database, asks a human before any refund, and records every step
@@ -165,10 +165,14 @@ Turn response:
 ```
 
 With `status: "awaiting_approval"`, `reply` is null and `approval` holds the payload from section 4.
-**Streaming (M3).** M1 ships only the JSON endpoints above. M3 adds
-`POST /conversations/{id}/messages/stream` (Server-Sent Events: `step`, `approval_required`, `reply`,
-`done`) together with the live trace panel. Both endpoints will share one internal turn runner, so
-behaviour is identical.
+**Streaming (added in M3).** `POST /conversations/{id}/messages/stream` and
+`POST /conversations/{id}/approval/stream` take the same bodies and return Server-Sent Events:
+`step` (one trace step, sent as soon as its graph node finishes), then `turn` (the same payload as the
+JSON turn response), or `error` if something fails after the stream started. Unknown conversations
+and pending approvals are still plain 404 and 409 responses, checked before the stream starts. The
+JSON endpoints run the same turn runner (`SupportService._run`, built on LangGraph
+`stream_mode="updates"`) to the end, so both behave identically. The browser reads the stream with
+`fetch` because `EventSource` only supports GET.
 
 ## 8. Folder structure
 
@@ -193,8 +197,8 @@ ai-support-agent-with-tools/
 │   └── Dockerfile
 ├── frontend/
 │   ├── app/                   # single page: chat left, trace right
-│   ├── components/            # ChatPanel, MessageBubble, TracePanel, TraceStep, ApprovalCard
-│   └── lib/api.ts             # typed client, SSE reader
+│   ├── components/            # ChatPanel, MessageBubble, ApprovalCard, TracePanel, TraceStep
+│   └── lib/                   # api.ts (typed client, SSE reader), useConversation.ts (page state)
 ├── eval/
 │   ├── scenarios.json         # 25 scripted conversations
 │   ├── run_eval.py            # runs and scores them
@@ -292,6 +296,15 @@ graph, the SQLite checkpointer and `sqlite3` are synchronous; this keeps the cod
 plumbing. Each tool opens its own short-lived SQLite connection. The routing after the model node
 plays the "guard" role from the diagram: it checks the step limit, then sends `create_refund` calls
 to the approval node and everything else to the tools node.
+
+M3 notes: Next.js 16.3.6, React 19.2.8 and Tailwind 4, with the config files copied from project 1
+so both repos look and build the same. Light theme only. The page is one client component using a
+`useConversation` hook: chat items (user, assistant, error, approval card) on the left, one trace
+card per turn on the right, filled live from `step` events and replaced by the stored trace when the
+`turn` event arrives. A turn that paused for approval keeps its trace card and continues after the
+decision. Replies corrected by the action-claim guard carry a "Corrected by action-claim guard" label,
+and the trace shows the original reply. Sample prompt chips fill in the four demo flows. Verified with
+Playwright in headless Chrome against the production build; screenshots in `docs/screenshots/`.
 
 M2 notes: the eval changed the agent in three places, all general rules rather than scenario
 patches: the `search_orders_by_email` description (use it whenever there is an email but no order
