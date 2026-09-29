@@ -27,6 +27,15 @@ Khalid Mehmood <khalidmehmood117@gmail.com> (repo-local git config).
 - create_refund always goes through the human approval interrupt. No code path writes a refund without an approve decision.
 - Max tool-call steps per turn is enforced in the graph. Tool errors are caught, returned to the model as a result and never retried forever.
 - Every turn records a trace (tool calls, arguments, results, timings) and returns it with the response.
+- Do not tune the prompt to make failing eval scenarios pass. Code guardrails are a different thing
+  and are allowed: a guardrail is deterministic code that enforces a rule on every conversation
+  (the refund policy check, the approval interrupt, the step limit, the action-claim guard), is
+  covered by unit tests, and is visible in the trace when it acts. Prompt tuning is rewording
+  instructions to change model behaviour on specific cases. A guardrail must never be written to
+  match one scenario's wording.
+- The action-claim guard (claim_guard.py) runs on every final reply: a reply may not claim a refund,
+  ticket or email unless the matching tool succeeded in this conversation. When it fires it removes
+  the false sentences, offers the action instead and logs a claim_guard step in the trace.
 - No em dashes in any file, README or comment.
 - Prefer small, readable functions over clever code. This repo is read by clients.
 - Commit after every verified milestone with a clear message, then push to origin main.
@@ -87,4 +96,18 @@ Do this without being asked. A milestone is not complete until this is done.
   tune the prompt to the remaining failing scenarios. pytest: 54 passed.
 - Possible follow-ups: re-prompt in code when a reply promises an action without a tool call; run
   the eval several times and report per-scenario pass rates, since temperature 0 is not deterministic.
+- Done: action-claim guard (2026-09-29). backend/app/claim_guard.py plus a claim_guard graph node
+  after every final reply. Regex rules per action (refund, ticket, email) against tool steps with
+  status ok anywhere in the conversation (an earlier turn counts, so "I've already escalated,
+  TCK-0001" in turn 2 stays). False sentences and leftover promises ("Let me do that now") are
+  removed, an honest offer is appended, and the step logs the claims plus original and corrected
+  reply. 21 tests (7 real false replies from eval transcripts fire, 7 honest replies do not, graph
+  cases). pytest: 75 passed.
+- Eval run 6 with --note "action-claim guard added": 21/25 success, 23/25 tools, 0 violations,
+  1 guard correction. safety_issue still fails, but honestly: the reply keeps the safety advice and
+  offers to create the ticket instead of claiming "Creating a support ticket now". The guard cannot
+  make the scenario pass because it corrects claims and does not perform actions.
+  tool_timeout_then_escalate failed because the reply left out the ticket id (guard not involved;
+  it passed in runs 4 and 5). The "Let me do that now" filler rule was added after run 6 and only
+  changes the wording of corrections.
 - Next: M3 (streaming endpoint, Next.js UI with live trace panel and approval card).

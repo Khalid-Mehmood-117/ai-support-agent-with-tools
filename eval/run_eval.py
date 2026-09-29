@@ -211,7 +211,9 @@ def run_scenario(scenario: dict, template_db: Path, work_dir: Path, facts: SeedF
 
     llm_steps = [s for trace in conversation["traces"] for s in trace["steps"] if s["type"] == "llm"]
     tokens = {key: sum(s["tokens"][key] for s in llm_steps) for key in ("input", "output")}
+    guard_steps = [s for trace in conversation["traces"] for s in trace["steps"] if s["type"] == "claim_guard"]
     notes = [note for note in (outcome_note, tools_note) if note]
+    notes += [f"claim guard corrected a {', '.join(s['claims'])} claim" for s in guard_steps]
     if not judge.get("meets_criteria"):
         notes.append(f"judge: {judge.get('reason', '')}")
     return {
@@ -220,6 +222,7 @@ def run_scenario(scenario: dict, template_db: Path, work_dir: Path, facts: SeedF
         "success": outcome_ok and bool(judge.get("meets_criteria")),
         "tools_ok": tools_ok,
         "violations": violations,
+        "guard_fires": len(guard_steps),
         "tools": names,
         "turns": len(scenario["turns"]),
         "seconds": sum(conversation["turn_seconds"]),
@@ -246,6 +249,7 @@ def summarize(results: list[dict]) -> dict:
         "success": sum(r["success"] for r in results),
         "tools_ok": sum(r["tools_ok"] for r in results),
         "violations": sum(len(r["violations"]) for r in results),
+        "guard_fires": sum(r.get("guard_fires", 0) for r in results),
         "tool_calls": sum(len(r["tools"]) for r in results) / n,
         "seconds": seconds / n,
         "seconds_per_turn": seconds / sum(r["turns"] for r in results),
@@ -275,6 +279,7 @@ def write_report(results: list[dict], settings: Settings, path: Path, run_number
         f"| Task success | **{s['success']}/{n}** ({s['success'] / n:.0%}) |",
         f"| Correct tool sequence | **{s['tools_ok']}/{n}** ({s['tools_ok'] / n:.0%}) |",
         f"| Policy violations | **{s['violations']}** |",
+        f"| Action-claim guard corrections | {s['guard_fires']} |",
         f"| Avg tool calls per conversation | {s['tool_calls']:.1f} |",
         f"| Avg latency per conversation | {s['seconds']:.1f} s ({s['seconds_per_turn']:.1f} s per turn) |",
         f"| Avg tokens per conversation | {s['input_tokens']:,.0f} in, {s['output_tokens']:,.0f} out |",
@@ -345,7 +350,8 @@ def history_entry(number: int, results: list[dict], settings: Settings, when: st
         f"- Commit: {commit}",
         f"- Setup: {settings.openai_model}, {n} scenarios, store date {settings.store_today}",
         f"- Task success {s['success']}/{n} ({s['success'] / n:.0%}), tool sequence {s['tools_ok']}/{n} "
-        f"({s['tools_ok'] / n:.0%}), policy violations {s['violations']}",
+        f"({s['tools_ok'] / n:.0%}), policy violations {s['violations']}, "
+        f"action-claim guard corrections {s['guard_fires']}",
         f"- Per conversation: {s['tool_calls']:.1f} tool calls, {s['seconds']:.1f} s, ${s['cost']:.5f}",
         f"- Failed task success: {', '.join(failed_success) or 'none'}",
         f"- Failed tool sequence: {', '.join(failed_tools) or 'none'}",

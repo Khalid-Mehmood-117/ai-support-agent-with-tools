@@ -1,6 +1,6 @@
 """The LangGraph agent.
 
-    agent --(no tool calls)--> end
+    agent --(no tool calls)--> claim_guard --> end
     agent --(too many tool calls this turn)--> step_limit --> end
     agent --(create_refund requested)--> approval --> tools --> agent
     agent --(other tool calls)--> tools --> agent
@@ -8,6 +8,9 @@
 The approval node pauses the graph with interrupt() until a staff member approves or rejects.
 It is a separate node because LangGraph re-runs a node from the start when it resumes, and the
 tools node has side effects (tickets, drafts) that must not run twice.
+
+The claim_guard node checks the final reply in code: it may not claim a refund, ticket or email
+that no tool call has produced (see claim_guard.py).
 
 Every node appends trace steps tagged with the current turn number.
 """
@@ -22,6 +25,7 @@ from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.types import Checkpointer, interrupt
 
+from app.claim_guard import honest_reply, unsupported_claims
 from app.prompts import system_prompt
 from app.tools import ToolContext, ToolError, approval_request, openai_tool_schemas, run_tool
 
@@ -66,7 +70,7 @@ def build_graph(
     def route_after_agent(state: AgentState) -> str:
         calls = state["messages"][-1].tool_calls
         if not calls:
-            return END
+            return "claim_guard"
         if _tool_steps_this_turn(state) + len(calls) > max_tool_steps:
             return "step_limit"
         if any(call["name"] == "create_refund" for call in calls):
@@ -131,16 +135,35 @@ def build_graph(
         }
         return {"messages": messages, "steps": [step]}
 
+    def claim_guard(state: AgentState) -> dict:
+        reply = state["messages"][-1]
+        succeeded = {s["name"] for s in state["steps"] if s["type"] == "tool" and s["status"] == "ok"}
+        claims = unsupported_claims(reply.content, succeeded)
+        if not claims:
+            return {}
+        corrected = honest_reply(reply.content, claims)
+        step = {
+            "type": "claim_guard",
+            "turn": state["turn"],
+            "claims": claims,
+            "original_reply": reply.content,
+            "corrected_reply": corrected,
+        }
+        # Same message id, so the reducer replaces the false reply instead of adding a second one.
+        return {"messages": [AIMessage(corrected, id=reply.id)], "steps": [step]}
+
     graph = StateGraph(AgentState)
     graph.add_node("agent", agent)
     graph.add_node("approval", approval)
     graph.add_node("tools", tools)
     graph.add_node("step_limit", step_limit)
+    graph.add_node("claim_guard", claim_guard)
     graph.add_edge(START, "agent")
-    graph.add_conditional_edges("agent", route_after_agent, ["approval", "tools", "step_limit", END])
+    graph.add_conditional_edges("agent", route_after_agent, ["approval", "tools", "step_limit", "claim_guard"])
     graph.add_edge("approval", "tools")
     graph.add_edge("tools", "agent")
     graph.add_edge("step_limit", END)
+    graph.add_edge("claim_guard", END)
     return graph.compile(checkpointer=checkpointer)
 
 
