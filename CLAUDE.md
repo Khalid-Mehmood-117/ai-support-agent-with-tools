@@ -80,7 +80,11 @@ Do this without being asked. A milestone is not complete until this is done.
   pytest: 52 passed (10 new tests prove every violation check fires on bad data).
 - Design changes in M2: search_orders_by_email description rewritten, prompt rules added for acting
   in the same reply and for asking before escalating after a tool error, safety advice rule added.
-  Note: re-running run_eval.py regenerates results.md and drops the hand-written run history section.
+- Eval history (2026-09-29): run_eval.py now appends every full run to eval/history.md (never
+  rewritten; use --note to record what changed). Runs 1 to 4 backfilled from saved reports. Run 5,
+  with no agent or prompt changes, scored 23/25 success, 23/25 tools, 0 violations (change_of_mind
+  passed this time), so treat task success as roughly 88 to 92 percent. Owner instruction: do not
+  tune the prompt to the remaining failing scenarios. pytest: 54 passed.
 - Possible follow-ups: re-prompt in code when a reply promises an action without a tool call; run
   the eval several times and report per-scenario pass rates, since temperature 0 is not deterministic.
 - Next: M3 (streaming endpoint, Next.js UI with live trace panel and approval card).

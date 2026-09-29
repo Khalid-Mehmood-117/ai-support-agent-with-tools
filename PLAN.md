@@ -268,11 +268,14 @@ each on a fresh temporary copy of the seeded database (no admin reset endpoint n
 - Also reported: average tool calls, latency and tokens per conversation, and estimated cost at the
   gpt-4o-mini list price ($0.15 and $0.60 per million input and output tokens, judge excluded).
 
-Writes `eval/results.md` (summary, per category, per scenario, transcripts of failures). The "Run
-history and known issues" section at the end is written by hand after a run, because the runner
-regenerates the rest of the file.
+Every full run regenerates `eval/results.md` (summary, per category, per scenario, transcripts of
+failures) and appends a summary to `eval/history.md`: run number, time, commit (flagged when the tree
+has uncommitted changes), scores, failed scenario ids, violations and the optional `--note`. Earlier
+entries are never rewritten. Partial runs (`--only`) write `eval/results_partial.md` (gitignored) and
+are not logged. Runs 1 to 4 were backfilled by hand from their saved reports.
 
-Targets were task success >= 90%, tool sequence >= 90%, violations = 0. Final M2 run: 88%, 92%, 0.
+Targets were task success >= 90%, tool sequence >= 90%, violations = 0. M2 result (run 4): 88%, 92%, 0.
+Run 5 with no code changes: 92%, 92%, 0, which shows the run-to-run variance at temperature 0.
 
 ## 11. Milestones
 
