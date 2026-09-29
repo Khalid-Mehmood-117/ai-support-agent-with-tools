@@ -1,0 +1,31 @@
+# Backend (FastAPI + LangGraph agent) and frontend (Next.js).
+# The SQLite store and the agent checkpoints live in the "store-data" volume; the backend creates and
+# seeds the store on first start. Reset the demo data with: docker compose down -v
+#
+# Needs OPENAI_API_KEY in .env (copy .env.example). If port 3000 is taken, set FRONTEND_PORT and
+# CORS_ORIGINS in .env as shown in .env.example.
+
+services:
+  backend:
+    build: ./backend
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in .env (see .env.example)}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    volumes:
+      - store-data:/data
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  store-data:

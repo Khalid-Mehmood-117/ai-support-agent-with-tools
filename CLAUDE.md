@@ -133,4 +133,23 @@ Do this without being asked. A milestone is not complete until this is done.
   It now deletes the checkpoint file first and exits with "Stop the backend" if it is in use, so a
   failed reset changes nothing.
 - Screenshots are made with Playwright from project 1's venv (not a dependency of this repo).
-- Next: M4 (Docker Compose, README with demo GIF, Mermaid diagram and eval results).
+- Done: M4 packaging and README (2026-09-29). backend/Dockerfile, frontend/Dockerfile, docker-compose.yml
+  with the SQLite store and checkpoints on the named volume store-data (seeded on first start).
+  README for a hiring client: description, demo GIF, problem, solution, Mermaid architecture, stack,
+  evaluation (run 7 table, 84 to 92 percent range across runs, history.md link), guardrails, known
+  limitations, 4 command setup, design decisions, author line. docs/demo.gif is 1.02 MB, 28 s,
+  3 captioned scenes (order lookup; refund with live trace and staff approval; fake SYSTEM message
+  refund denied by the policy check).
+- M4 verification: clean machine simulated by copying only git-visible files (no .env, node_modules,
+  .venv or databases) to a scratch folder with a fresh .env from .env.example, then docker compose
+  down -v and up --build (184 s). Backend healthy, volume seeded with 20 orders, 8 customers,
+  2 refunds. The four browser flows passed against the containers with zero console errors, the
+  ORD-1007 refund was written to the volume and survived a backend restart. The first draft would
+  have failed on a fresh clone because frontend/public was empty and untracked; fixed with .gitkeep.
+  Screenshots in docs/screenshots were re-taken from the compose stack.
+- README wording on violations: every run had 0 real violations; run 1 reported 1, a false positive
+  in the eval checker, and the README says so rather than claiming 0 in every run.
+- Project status: COMPLETE. All four milestones delivered, verified and pushed to origin main.
+- Possible follow-ups: a code step that performs an escalation the reply promised (instead of only
+  correcting it), repeated eval runs with per-scenario pass rates, real sign in instead of the email
+  ownership check, eval scenarios written by someone other than the author.

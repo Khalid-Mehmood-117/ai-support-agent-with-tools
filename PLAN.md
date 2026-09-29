@@ -1,6 +1,7 @@
 # PLAN.md: AI Support Agent with Tools
 
-**Status: M3 done (2026-09-29).** Next is M4. See the Status section of CLAUDE.md for what was verified.
+**Status: complete (2026-09-29).** All four milestones (M1 to M4) are done and verified. See the Status
+section of CLAUDE.md for what was verified and how, and eval/history.md for every evaluation run.
 
 A portfolio-grade customer support agent for a fictional online store. The agent talks to customers,
 calls real tools against a store database, asks a human before any refund, and records every step
@@ -296,6 +297,16 @@ graph, the SQLite checkpointer and `sqlite3` are synchronous; this keeps the cod
 plumbing. Each tool opens its own short-lived SQLite connection. The routing after the model node
 plays the "guard" role from the diagram: it checks the step limit, then sends `create_refund` calls
 to the approval node and everything else to the tools node.
+
+M4 notes: `backend/Dockerfile` (python:3.13-slim, health check on /health, `DATABASE_PATH` and
+`CHECKPOINT_PATH` pointed at `/data`) and `frontend/Dockerfile` (two-stage standalone Next.js build,
+`NEXT_PUBLIC_API_URL` baked in at build time, same as project 1). `docker-compose.yml` runs backend and
+frontend; the store and checkpoints live on the named volume `store-data`, the backend seeds the store
+on first start, and the frontend waits for the backend health check. `OPENAI_API_KEY` is required
+through compose variable substitution from `.env`; `FRONTEND_PORT` and `CORS_ORIGINS` are optional.
+`frontend/public/.gitkeep` exists because git does not track empty folders and the Dockerfile copies
+`public/`. The demo GIF is Playwright screenshots of the compose stack, assembled with Pillow (not a
+dependency of the repo) with one caption per scene. The README architecture diagram is Mermaid.
 
 M3 notes: Next.js 16.3.6, React 19.2.8 and Tailwind 4, with the config files copied from project 1
 so both repos look and build the same. Light theme only. The page is one client component using a
