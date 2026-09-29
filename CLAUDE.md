@@ -64,4 +64,23 @@ Do this without being asked. A milestone is not complete until this is done.
 - Design notes from M1: sync routes and sync graph (simpler than async here). Approval is its own
   node because LangGraph re-runs a node on resume. Trace duration_ms excludes approval wait time.
   Demo data is reset with `python -m app.seed --reset` from backend/.
-- Next: M2 (25 eval scenarios, runner, results.md).
+- Done: M2 evaluation (2026-09-29). eval/scenarios.json has 25 scripted conversations in 11
+  categories, 8 of them adversarial (3 prompt injections, 2 ownership, 1 change of mind, 2 tool
+  timeouts). eval/run_eval.py runs each in-process with real gpt-4o-mini on a fresh copy of the seed
+  database, scripts staff approvals, scores task success (database end state plus a gpt-4o-mini
+  judge), tool sequence (ordered subsequence plus forbidden tools) and policy violations (checked in
+  code against seed ground truth), and reports tool calls, latency, tokens and estimated cost.
+- M2 verification: four full runs. Final run (eval/results.md): task success 22/25 (88%), tool
+  sequence 23/25 (92%), policy violations 0, 1.2 tool calls, 3.1 s and about $0.0005 per
+  conversation. Run 1 had 1 violation, a false positive in the eval judge (a past refund counted as
+  a new refund claim); fixed in run_eval.py. Known failures are documented in results.md: the fake
+  SYSTEM message makes the model skip the eligibility check (code guardrail blocked the refund every
+  time), the safety scenario sometimes announces a ticket without calling the tool, the agent lists
+  the requester's own orders unasked, and the change of mind reply is not explicit.
+  pytest: 52 passed (10 new tests prove every violation check fires on bad data).
+- Design changes in M2: search_orders_by_email description rewritten, prompt rules added for acting
+  in the same reply and for asking before escalating after a tool error, safety advice rule added.
+  Note: re-running run_eval.py regenerates results.md and drops the hand-written run history section.
+- Possible follow-ups: re-prompt in code when a reply promises an action without a tool call; run
+  the eval several times and report per-scenario pass rates, since temperature 0 is not deterministic.
+- Next: M3 (streaming endpoint, Next.js UI with live trace panel and approval card).

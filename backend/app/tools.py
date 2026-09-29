@@ -81,7 +81,8 @@ TOOL_SPECS = [
     ),
     ToolSpec(
         "search_orders_by_email",
-        "List all orders for a customer email. Use when the customer does not know the order id.",
+        "List all orders for a customer email. Use it whenever the customer gives an email but no "
+        "order id, for example to find the order that contains a product they mention.",
         EmailArgs,
     ),
     ToolSpec(
